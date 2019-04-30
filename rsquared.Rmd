@@ -1,0 +1,102 @@
+---
+title: "How does R-squared work?"
+output: html_notebook
+---
+
+This is a quick look at how R-squared is calculated, and it's components.
+
+$R^2$: The proportion of variation in the dependent variable that is explained by a model's independent variables.  
+Also called the *coefficient of determination*. Fancy.
+
+To see how $R^2$ works, we'll first create a linear regression using the **cars** dataset, which is included with R. The dataset includes only two variables: *speed* and *dist*. This data, recorded in the 1920s, shows how far a car traveled (dist) after applying the brakes at a given (speed).
+
+We'll see how $R^2$ is calculated, and determine how much speed influences how long it takes a car to come to a stop.
+
+```{r include = FALSE}
+library(data.table)
+library(tidyverse)
+library(formattable)
+data(cars)
+setDT(cars)
+```
+
+
+#### The Data
+```{r echo=FALSE}
+formattable(head(cars), align="l")
+```
+
+We'll use a simple linear regression and examine the $R^2$.
+
+```{r}
+mod <- lm(dist ~ speed, data = cars) #distance on speed
+summary(mod)
+```
+
+So, we have an $R^2$ of 0.6511, meaning about 2/3 of the variation in stopping distance can be explained by speed, which makes some sense. What other variables might contribute to stopping distance?
+
+#### How the $R^2$ was calculated
+
+To figure out the proportion of variation explained, it's about as simple as figuring out any other proportion. We divide "explained" by "total". We just need to figure out what those are. We have 3 quantities to consider:
+
+1) The total variation  
+2) The explained variation  
+3) The unexplained variation  
+
+As $explained + unexplained = total$, we can figure out any one of these quantities with the other two. In regression, we use sums of squares to create our regression line... we minimize the "unexplained" to get a line of best fit.
+
+These sums of squares are:
+
+- $\sum_{i=1}^{n} (y_i - \bar{y})^2$  Total Sum of Squares (TSS)  
+- $\sum_{i=1}^{n} (\hat{y_i} - \bar{y})^2$  Explained Sum of Squares (ESS)  
+- $\sum_{i=1}^{n} (y_i - \hat{y_i})^2$  Residual Sum of Squares (RSS) - the sum of squared errors
+
+Now it's pretty straightforward. If we wanted to figure out what proportion of answers we get right in, say, an online quiz, we just divide the points we earned from the total possible points. Exact same idea here. We take what we "got right" (explained) and divide by the total possible (total).
+
+$$R^2 = \frac{ESS}{TSS}$$ or $$R^2 = 1-\frac{RSS}{TSS}$$
+
+The first one is obvious enough... what's going on with the second? Well, the proportions of explained and unexplained always sum to 1 (100% of total), so if we *can* explain 75%, we know that we *can't* explain 25%. One more formula manipulation that demonstrates this:
+
+First, a reminder that $ESS + RSS = TSS$.  
+
+Then, we divide all the terms by TSS (we'd divide by TSS/total to get a proportion)  
+
+$\frac{ESS}{TSS}+\frac{RSS}{TSS}=\frac{TSS}{TSS}=1$  
+
+Finally, just rearrange a bit  
+
+$1 - \frac{RSS}{TSS} = \frac{ESS}{TSS}$
+
+
+Now we'll calculate each of the values we need, and see if our result matches what came out of the pre-written model summary (0.6511)
+
+```{r}
+cars[, pred := predict(mod)]
+
+ybar <- mean(cars$dist)
+TSS <- sum((cars$dist - ybar)^2) #total
+ESS <- sum((cars$pred - ybar)^2) #explained
+RSS <- sum((cars$dist - cars$pred)^2) #residual (unexplained)
+
+```
+
+First, let's look at the values to help picture what's happening:
+
+ESS = `r format(round(ESS,0),nsmall=0)`  
+RSS = `r format(round(RSS,0),nsmall=0)`  
+TSS = `r format(round(TSS,0),nsmall=0)`  
+
+Pretty clear that the explained (ESS) and unexplained (RSS) add up to the total (TSS).
+
+We can also calculate that $\frac{ESS}{TSS}=$  `r round(ESS/TSS,4)` and $1-\frac{RSS}{TSS}=$  `r round(1- (RSS/TSS),4)`, which match exactly with the output from the model summary.
+
+### ANOVA table with same values
+
+Rather than doing the calculations ourselves, we can see the ESS and RSS using `anova()` in R.
+
+```{r}
+anova(mod)
+```
+
+
+Notice the sum of squares (Sum Sq) column. The first row is the ESS (speed is our only explanatory variable in this model), and the second row is the RSS. It's basic arithmetic to get from here to $\frac{ESS}{ESS + RSS}$ and the $R^2$ value
